@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.9", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip pytest
+      - run: python -m pip install .
+      - run: python -m pytest -q
+      - name: Installed CLI runs
+        run: |
+          android-target-ready --version
+          android-target-ready --list-rules
+
+  package:
+    name: build wheel and sdist, install the wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - name: Install the wheel into a clean venv and scan a fixture
+        run: |
+          python -m venv /tmp/v
+          /tmp/v/bin/pip install dist/*.whl
+          /tmp/v/bin/android-target-ready tests/fixtures/app-needs-work --fail-on never | tail -3
+
+  action-selftest:
+    name: action-selftest (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fixture that needs work must fail the step
+        id: bad
+        continue-on-error: true
+        uses: ./
+        with:
+          path: tests/fixtures/app-needs-work
+          sarif-file: ${{ runner.temp }}/atr.sarif
+      - name: It really failed and wrote SARIF
+        run: |
+          if [ "${{ steps.bad.outcome }}" != "failure" ]; then echo "expected failure, got ${{ steps.bad.outcome }}"; exit 1; fi
+          python3 -c "import json,sys;j=json.load(open(sys.argv[1]));r=[x['ruleId'] for x in j['runs'][0]['results']];assert j['version']=='2.1.0' and 'edge-to-edge-opt-out' in r and 'play-target-floor' in r, r;print('results:',len(r))" "$RUNNER_TEMP/atr.sarif" || python -c "import json,sys;j=json.load(open(sys.argv[1]));r=[x['ruleId'] for x in j['runs'][0]['results']];assert j['version']=='2.1.0' and 'edge-to-edge-opt-out' in r and 'play-target-floor' in r, r;print('results:',len(r))" "$RUNNER_TEMP/atr.sarif"
+      - name: fail-on never lets the same fixture pass
+        uses: ./
+        with:
+          path: tests/fixtures/app-needs-work
+          fail-on: never
+      - name: Ready fixture passes
+        uses: ./
+        with:
+          path: tests/fixtures/app-ready
+      - name: disable and target inputs are honoured
+        uses: ./
+        with:
+          path: tests/fixtures/app-needs-work
+          target: "36"
+          disable: "play-target-floor edge-to-edge-opt-out fixed-orientation non-resizeable"
+          fail-on: error

@@ -135,3 +135,8 @@ def test_unresolved_and_library_modules(tmp_path):
 def test_build_and_generated_dirs_are_skipped(tmp_path):
     r = run(tmp_path, app(extra={"app/build/generated/X.kt": "fun x() = KeyEvent.KEYCODE_BACK\n"}))
     assert ids(r) == []
+
+
+def test_local_network_flags_usage_not_the_import(tmp_path):
+    r = run(tmp_path, app(extra={"app/src/main/java/N.kt": "import android.net.nsd.NsdManager\n\nfun f(c: Context) = c.getSystemService(NsdManager::class.java)\n"}))
+    assert [f.line for f in r.findings] == [3]

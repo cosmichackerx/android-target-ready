@@ -175,7 +175,7 @@ def scan(root: str, target: int = 37, disabled: set[str] | None = None, include_
         if is_code:
             if not has_local_net_perm:
                 for i, line in enumerate(lines):
-                    if LOCAL_NET.search(line):
+                    if LOCAL_NET.search(line) and not line.lstrip().startswith("import "):
                         add("local-network-permission", path, i + 1, raw_lines, i)
                         break
             for i, line in enumerate(lines):
