@@ -140,3 +140,40 @@ def test_build_and_generated_dirs_are_skipped(tmp_path):
 def test_local_network_flags_usage_not_the_import(tmp_path):
     r = run(tmp_path, app(extra={"app/src/main/java/N.kt": "import android.net.nsd.NsdManager\n\nfun f(c: Context) = c.getSystemService(NsdManager::class.java)\n"}))
     assert [f.line for f in r.findings] == [3]
+
+
+def test_root_build_file_with_apply_false_is_not_an_app_module(tmp_path):
+    res = run(tmp_path, {
+        "build.gradle.kts": 'plugins { alias(libs.plugins.android.application) apply false\n id("com.android.application") version "9.0" apply false }\n',
+        "app/build.gradle.kts": APP_KTS % "36",
+    })
+    assert [m.dir for m in res.modules] == ["app"]
+
+
+def test_convention_plugin_target_is_used_when_unambiguous(tmp_path):
+    res = run(tmp_path, {
+        "app/build.gradle.kts": 'plugins { id("com.example.android.application") }\n',
+        "build-logic/convention/src/main/kotlin/AppPlugin.kt": "class P { fun c() { extension.defaultConfig.targetSdk = 36 } }\n",
+    })
+    (m,) = res.modules
+    assert m.target == 36 and "convention plugin" in m.note
+    assert not any(f.rule == "target-unresolved" for f in res.findings)
+
+
+def test_convention_plugin_with_two_values_stays_unresolved(tmp_path):
+    res = run(tmp_path, {
+        "app/build.gradle.kts": 'plugins { id("com.android.application") }\n',
+        "build-logic/a.kt": "x.targetSdk = 35\n",
+        "build-logic/b.kt": "x.targetSdk = 36\n",
+    })
+    assert res.modules[0].target is None
+
+
+def test_agp9_target_sdk_block_dsl(tmp_path):
+    res = run(tmp_path, {"app/build.gradle.kts": 'plugins { id("com.android.application") }\nandroid { defaultConfig {\n targetSdk {\n version = release(37)\n}\n} }\n'})
+    assert res.modules[0].target == 37
+
+
+def test_agp9_target_sdk_one_line(tmp_path):
+    res = run(tmp_path, {"app/build.gradle.kts": 'plugins { id("com.android.application") }\nandroid { defaultConfig { targetSdk { version = release(36) } } }\n'})
+    assert res.modules[0].target == 36

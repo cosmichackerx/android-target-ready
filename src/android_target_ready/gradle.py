@@ -9,7 +9,8 @@ from .lexer import strip_comments
 _NOISE = {"libs", "versions", "get", "toint", "toint()", "rootproject", "project", "ext", "extra", "property", "findproperty",
           "getproperty", "versionname", "integer", "parseint", "valueof", "int", "string", "tostring", "toi", "the"}
 _TARGET = re.compile(r"""\btargetSdk(?:Version)?\b\s*(?:=|\(|\s)\s*(?P<expr>[^\n;}]+)""")
-_APP_PLUGIN = re.compile(r"""com\.android\.application|libs\.plugins\.[\w.]*application|androidApplication|android-application""", re.I)
+_TARGET_DSL = re.compile(r"""\btargetSdk\s*\{\s*version\s*=\s*release\(\s*(\d{2,3})\b""")
+_APP_PLUGIN = re.compile(r"""[\w.\-]*android\.application|libs\.plugins\.[\w.]*application|androidApplication|android-application""", re.I)
 
 
 def norm(name: str) -> str:
@@ -76,6 +77,38 @@ def resolve(expr: str, consts: dict[str, int]) -> tuple[int | None, str]:
     return None, "unresolved"
 
 
+def _declares_app(code: str) -> bool:
+    """True when the file applies an application plugin (a root-project `apply false` does not count)."""
+    for line in code.splitlines():
+        if _APP_PLUGIN.search(line) and not re.search(r"apply\s*(?:\(\s*)?false", line):
+            return True
+    return False
+
+
+def _is_plugin_source(path: str) -> bool:
+    """build-logic / buildSrc build files configure convention plugins; they are not apps themselves."""
+    return any(seg in ("build-logic", "buildSrc") for seg in path.split("/")[:-1])
+
+
+_CONV_TARGET = re.compile(r"""\btargetSdk(?:Version)?\s*(?:=|\()\s*([\w.]+)""")
+
+
+def convention_target(files: dict[str, str], consts: dict[str, int]) -> tuple[int | None, str]:
+    """Heuristic: a single targetSdk value set inside build-logic/buildSrc sources."""
+    found: dict[int, str] = {}
+    for path, text in sorted(files.items()):
+        if not _is_plugin_source(path) or not path.endswith((".kt", ".kts", ".gradle")):
+            continue
+        for m in _CONV_TARGET.finditer(strip_comments(text)):
+            val, _ = resolve(m.group(1), consts)
+            if val is not None:
+                found.setdefault(val, path)
+    if len(found) == 1:
+        (v, path), = found.items()
+        return v, f"via convention plugin {path} (heuristic)"
+    return None, "unresolved"
+
+
 def find_modules(files: dict[str, str]) -> list[Module]:
     consts = collect_constants(files)
     mods: list[Module] = []
@@ -85,10 +118,14 @@ def find_modules(files: dict[str, str]) -> list[Module]:
             continue
         d = path.rsplit("/", 1)[0] if "/" in path else ""
         code = strip_comments(text)
-        is_app = bool(_APP_PLUGIN.search(code))
+        is_app = _declares_app(code) and not _is_plugin_source(path)
         mod = Module(dir=d, build_file=path, is_app=is_app)
         if is_app:
-            for m in _TARGET.finditer(code):
+            dsl = _TARGET_DSL.search(code)
+            if dsl:
+                mod.target, mod.note = int(dsl.group(1)), "literal (targetSdk { version = release(..) })"
+                mod.expr, mod.target_line = f"release({dsl.group(1)})", code.count("\n", 0, dsl.start()) + 1
+            for m in ([] if dsl else _TARGET.finditer(code)):
                 line = code.count("\n", 0, m.start()) + 1
                 val, how = resolve(m.group("expr"), consts)
                 mod.expr, mod.target_line = m.group("expr").strip(), line
@@ -96,5 +133,9 @@ def find_modules(files: dict[str, str]) -> list[Module]:
                     mod.target, mod.note = val, how
                     break
                 mod.note = how
+        if is_app and mod.target is None:
+            v, how = convention_target(files, consts)
+            if v is not None:
+                mod.target, mod.note = v, how
         mods.append(mod)
     return [m for m in mods if m.is_app]
