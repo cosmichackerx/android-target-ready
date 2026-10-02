@@ -94,7 +94,7 @@ def test_inline_ignore_same_and_previous_line(tmp_path):
 
 
 def test_tests_are_skipped_unless_asked_and_disable_works(tmp_path):
-    files = app(extra={"app/src/test/java/T.kt": "fun t() = KeyEvent.KEYCODE_BACK\n", "app/src/main/java/M.kt": "fun m() = KeyEvent.KEYCODE_BACK\n"})
+    files = app(extra={"app/src/test/java/T.kt": "fun t(k: Int) = k == KeyEvent.KEYCODE_BACK\n", "app/src/main/java/M.kt": "fun m(k: Int) = k == KeyEvent.KEYCODE_BACK\n"})
     assert [f.file for f in run(tmp_path / "a", files).findings] == ["app/src/main/java/M.kt"]
     assert len(run(tmp_path / "b", files, include_tests=True).findings) == 2
     assert run(tmp_path / "c", files, disabled={"back-keycode"}).findings == []
@@ -133,7 +133,7 @@ def test_unresolved_and_library_modules(tmp_path):
 
 
 def test_build_and_generated_dirs_are_skipped(tmp_path):
-    r = run(tmp_path, app(extra={"app/build/generated/X.kt": "fun x() = KeyEvent.KEYCODE_BACK\n"}))
+    r = run(tmp_path, app(extra={"app/build/generated/X.kt": "fun x(k: Int) = k == KeyEvent.KEYCODE_BACK\n"}))
     assert ids(r) == []
 
 
@@ -177,3 +177,27 @@ def test_agp9_target_sdk_block_dsl(tmp_path):
 def test_agp9_target_sdk_one_line(tmp_path):
     res = run(tmp_path, {"app/build.gradle.kts": 'plugins { id("com.android.application") }\nandroid { defaultConfig { targetSdk { version = release(36) } } }\n'})
     assert res.modules[0].target == 36
+
+
+def test_imports_and_declarations_are_not_uses(tmp_path):
+    res = run(tmp_path, {
+        "app/build.gradle.kts": APP_KTS % "37",
+        "app/src/main/java/A.kt": "import android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED\nfun f(v: View) { v.setContentCaptureEnabled(true) }\n",
+        "app/src/main/java/B.java": "class B {\n  protected BluetoothSocket createRfcommSocketToServiceRecord(UUID u) { return null; }\n}\n",
+    })
+    assert ids(res) == []
+
+
+def test_back_rules_skip_custom_methods_and_non_handling_mentions(tmp_path):
+    res = run(tmp_path, app(extra={
+        "app/src/main/java/a/Frag.kt": "open class F {\n  open fun onBackPressed() {}\n  override fun onBackPressed(): Boolean { return false }\n  fun go() { keyevent(KeyEvent.KEYCODE_BACK) }\n  fun n(k: Int) = k != KeyEvent.KEYCODE_BACK\n}\n"}))
+    assert ids(res) == []
+
+
+def test_on_back_pressed_needs_an_activity_or_dialog_subclass_and_device_tests_are_skipped(tmp_path):
+    res = run(tmp_path, app(extra={
+        "app/src/main/java/Scene.java": "class Scene extends PixelScene {\n  @Override\n  public void onBackPressed() {}\n}\n",
+        "app/src/main/java/Act.java": "class Act extends AppCompatActivity {\n  @Override\n  public void onBackPressed() {}\n}\n",
+        "app/src/androidDeviceTest/AndroidManifest.xml": MANIFEST % '    <activity android:name=".A" android:screenOrientation="portrait"/>\n',
+    }))
+    assert [(f.rule, f.file.split("/")[-1]) for f in res.findings] == [("back-pressed-override", "Act.java")]

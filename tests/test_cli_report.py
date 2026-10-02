@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 
@@ -60,5 +61,5 @@ def test_ignore_glob_and_module_entry_point(tmp_path):
     d = project(tmp_path, FILES)
     r = scan(d, ignore=["app/src/main/java"])
     assert not any(f.rule == "back-pressed-override" for f in r.findings)
-    p = subprocess.run([sys.executable, "-m", "android_target_ready", d, "--fail-on", "never"], capture_output=True, text=True, env={"PYTHONPATH": "src", "PATH": ""})
-    assert p.returncode == 0 and "play-target-floor" in p.stdout
+    p = subprocess.run([sys.executable, "-m", "android_target_ready", d, "--fail-on", "never"], capture_output=True, text=True, env={**os.environ, "PYTHONPATH": "src"})
+    assert p.returncode == 0 and "play-target-floor" in p.stdout, p.stderr

@@ -11,7 +11,7 @@ from .lexer import strip_comments
 from .rules import PLAY, RULES, Rule
 
 SKIP_DIRS = {".git", "build", ".gradle", "node_modules", ".idea", "out", "generated", ".svn", ".hg", "Pods", "DerivedData", ".dart_tool"}
-TEST_DIR = re.compile(r"(^|/)src/(test|androidTest|testDebug|testRelease|androidTestDebug|sharedTest|commonTest|jvmTest|iosTest|desktopTest)[^/]*/", re.I)
+TEST_DIR = re.compile(r"(^|/)src/(test|androidTest|testDebug|testRelease|androidTestDebug|sharedTest|commonTest|jvmTest|iosTest|desktopTest|androidDeviceTest|androidUnitTest|androidInstrumentedTest|androidHostTest)[^/]*/", re.I)
 MAX_BYTES = 2_000_000
 
 PORTRAIT_LANDSCAPE = r"(?:portrait|landscape|reversePortrait|reverseLandscape|sensorPortrait|sensorLandscape|userPortrait|userLandscape)"
@@ -58,17 +58,20 @@ LINE_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
     ("sms-otp-delay", re.compile(r"android\.permission\.(?:RECEIVE_SMS|READ_SMS)[\"']"), "manifest"),
     ("elegant-text-height", re.compile(r"elegantTextHeight[\"']?\s*(?:=\s*[\"']false[\"']|>\s*false\b)"), "xml"),
     ("elegant-text-height", re.compile(r"(?:setElegantTextHeight\s*\(\s*false\s*\)|\bisElegantTextHeight\s*=\s*false\b)"), "code"),
-    ("back-pressed-override", re.compile(r"\bfun\s+onBackPressed\s*\(|\b(?:public|protected)\s+void\s+onBackPressed\s*\("), "code"),
-    ("back-keycode", re.compile(r"\bKEYCODE_BACK\b"), "code"),
+    ("back-pressed-override", re.compile(r"\boverride\s+fun\s+onBackPressed\s*\(\s*\)\s*(?![:\s]*\w)|\b(?:public|protected)\s+void\s+onBackPressed\s*\(\s*\)"), "code"),
+    ("back-keycode", re.compile(r"(?:==|\bcase)\s*(?:KeyEvent\.)?KEYCODE_BACK\b|\bKEYCODE_BACK\s*(?:==|->|:)"), "code"),
     ("fixed-rate-scheduling", re.compile(r"\.scheduleAtFixedRate\s*\("), "code"),
     ("set-requested-orientation", re.compile(rf"(?:setRequestedOrientation\s*\(|\brequestedOrientation\s*=)[^\n]*{ORIENT_CONST}"), "code"),
     ("bal-legacy-mode", re.compile(r"\bMODE_BACKGROUND_ACTIVITY_START_ALLOWED\b"), "code"),
-    ("content-capture-disable", re.compile(r"\bsetContentCaptureEnabled\s*\("), "code"),
+    ("content-capture-disable", re.compile(r"\bsetContentCaptureEnabled\s*\(\s*false\b"), "code"),
     ("native-load-writable", re.compile(r"(?:\bSystem|\bRuntime\.getRuntime\(\))\.load\s*\("), "code"),
     ("static-final-reflection", re.compile(r"""getDeclaredField\s*\(\s*["'](?:modifiers|accessFlags)["']\s*\)"""), "code"),
     ("contacts-pii-columns", re.compile(r"\bContactsContract\.Data\.ACCOUNT_(?:NAME|TYPE_AND_DATA_SET|TYPE)\b"), "code"),
     ("remoteviews-bitmap", re.compile(r"\bsetImageViewBitmap\s*\(|\bsetBitmap\s*\(\s*R\.id|\bsetImageViewIcon\s*\([^)]*createWithBitmap"), "code"),
 ]
+ACTIVITY_LIKE = re.compile(r"(?:\bextends|:)\s*[\w.]*(?:Activity|Dialog)\b")  # onBackPressed only matters on Activity/Dialog subclasses
+IMPORT_LINE = re.compile(r"\s*import\s")
+DECLARATION = re.compile(r"\s*(?:@\w+(?:\([^)]*\))?\s+)*(?:public|protected|private)\s")  # method/field declarations, not calls
 LOCAL_NET = re.compile(r"\bNsdManager\b|\bMulticastSocket\b|\bcreateMulticastLock\b|\bjavax\.jmdns\b|\bJmDNS\b")
 RFCOMM = re.compile(r"\b(?:createRfcommSocketToServiceRecord|createInsecureRfcommSocketToServiceRecord|listenUsingRfcommWithServiceRecord|listenUsingInsecureRfcommWithServiceRecord)\b")
 MQ_REFLECT = re.compile(r"""getDeclared(?:Field|Method)\s*\(\s*["'](m[A-Z]\w+|next|enqueueMessage|postSyncBarrier|removeSyncBarrier)["']""")
@@ -170,16 +173,20 @@ def scan(root: str, target: int = 37, disabled: set[str] | None = None, include_
             if game and rule_id in LARGE_SCREEN_RULES:
                 continue  # documented exception: games (android:appCategory="game")
             for i, line in enumerate(lines):
+                if is_code and IMPORT_LINE.match(line):
+                    continue  # an import is not a use
+                if rule_id == "back-pressed-override" and not ACTIVITY_LIKE.search(body):
+                    break  # e.g. a game engine's own Scene/Window.onBackPressed
                 if rx.search(line):
                     add(rule_id, path, i + 1, raw_lines, i)
         if is_code:
             if not has_local_net_perm:
                 for i, line in enumerate(lines):
-                    if LOCAL_NET.search(line) and not line.lstrip().startswith("import "):
+                    if LOCAL_NET.search(line) and not IMPORT_LINE.match(line) and not line.lstrip().startswith("@Implements"):
                         add("local-network-permission", path, i + 1, raw_lines, i)
                         break
             for i, line in enumerate(lines):
-                if RFCOMM.search(line):
+                if RFCOMM.search(line) and not DECLARATION.match(line):
                     add("rfcomm-read", path, i + 1, raw_lines, i)
                     break
             if "MessageQueue" in body:
