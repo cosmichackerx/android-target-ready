@@ -159,7 +159,7 @@ Severity can be higher at 37 where a temporary opt-out disappears.
 | `sms-otp-delay` | 37 | info | Standard OTP SMS messages reach most apps only after three hours when targeting 37 (SMS Retriever / User Consent are exempt). | [docs](https://developer.android.com/about/versions/17/behavior-changes-17) |
 
 How `targetSdk` is found: literals, `libs.versions.toml`, `gradle.properties`, `ext`/`extra`, Kotlin `const val`,
-AGP 9 `targetSdk { version = release(..) }`, and a single value set inside `build-logic`/`buildSrc`. If it cannot be determined
+AGP 9 `targetSdk { version = release(..) }`, and, when the module's own build file does not say, heuristics in this order: a precompiled script plugin named like the plugin id the module applies, a convention plugin class whose name matches the applied alias, all of `build-logic`/`buildSrc`/`build-plugin` when they agree on one value, and shared root scripts (`common.gradle`, `subprojects {}`) when they agree. Several values in one file (product flavors) report the lowest. If it cannot be determined
 you get an `info` finding (`target-unresolved`) instead of a guess.
 
 ## How it relates to other tools
