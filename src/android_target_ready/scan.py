@@ -99,6 +99,15 @@ def walk(root: str) -> list[str]:
     return sorted(out)
 
 
+def _requires_feature(manifest: str, name: str) -> bool:
+    """True for <uses-feature android:name=NAME/> that is not marked android:required="false" (a TV-optional phone app keeps the phone floor)."""
+    for m in re.finditer(r"<uses-feature\b[^>]*>", manifest):
+        tag = m.group(0)
+        if name in tag and not re.search(r"""android:required\s*=\s*["']false["']""", tag):
+            return True
+    return False
+
+
 def severity_for(rule: Rule, target: int) -> str:
     if rule.escalate_at is not None and target >= rule.escalate_at and rule.escalate_to:
         return rule.escalate_to
@@ -199,7 +208,7 @@ def scan(root: str, target: int = 37, disabled: set[str] | None = None, include_
         mf = next((t for p, t in manifests.items() if p.startswith((m.dir + "/" if m.dir else "")) and p.endswith("src/main/AndroidManifest.xml")), "")
         if "android.hardware.type.watch" in mf:
             m.floor_kind = "wear"
-        elif "android.software.leanback" in mf or "android.hardware.type.television" in mf:
+        elif _requires_feature(mf, "android.software.leanback") or _requires_feature(mf, "android.hardware.type.television"):
             m.floor_kind = "tv"
         elif "android.hardware.type.automotive" in mf:
             m.floor_kind = "auto"

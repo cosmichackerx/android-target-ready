@@ -9,7 +9,7 @@ from .lexer import strip_comments
 _NOISE = {"libs", "versions", "get", "toint", "toint()", "rootproject", "project", "ext", "extra", "property", "findproperty",
           "getproperty", "versionname", "integer", "parseint", "valueof", "int", "string", "tostring", "toi", "the"}
 _TARGET = re.compile(r"""\btargetSdk(?:Version)?\b\s*(?:=|\(|\s)\s*(?P<expr>[^\n;}]+)""")
-_TARGET_DSL = re.compile(r"""\btargetSdk\s*\{\s*version\s*=\s*release\(\s*(\d{2,3})\b""")
+_TARGET_DSL = re.compile(r"""\btargetSdk\s*\{\s*version\s*=\s*release\(\s*([^)\s,]+)""")
 _APP_PLUGIN = re.compile(r"""[\w.\-]*android\.application|libs\.plugins\.[\w.]*application|androidApplication|android-application""", re.I)
 
 
@@ -123,7 +123,8 @@ def find_modules(files: dict[str, str]) -> list[Module]:
         if is_app:
             dsl = _TARGET_DSL.search(code)
             if dsl:
-                mod.target, mod.note = int(dsl.group(1)), "literal (targetSdk { version = release(..) })"
+                val, how = resolve(dsl.group(1), consts)
+                mod.target, mod.note = val, (how if val is None else f"{how} (targetSdk {{ version = release(..) }})")
                 mod.expr, mod.target_line = f"release({dsl.group(1)})", code.count("\n", 0, dsl.start()) + 1
             for m in ([] if dsl else _TARGET.finditer(code)):
                 line = code.count("\n", 0, m.start()) + 1

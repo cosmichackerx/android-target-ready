@@ -201,3 +201,17 @@ def test_on_back_pressed_needs_an_activity_or_dialog_subclass_and_device_tests_a
         "app/src/androidDeviceTest/AndroidManifest.xml": MANIFEST % '    <activity android:name=".A" android:screenOrientation="portrait"/>\n',
     }))
     assert [(f.rule, f.file.split("/")[-1]) for f in res.findings] == [("back-pressed-override", "Act.java")]
+
+
+def test_agp9_target_sdk_block_with_a_property(tmp_path):
+    res = run(tmp_path, {"gradle.properties": "APP_TARGET=37\n", "app/build.gradle.kts": 'plugins { id("com.android.application") }\nandroid { defaultConfig {\n targetSdk {\n version = release(APP_TARGET)\n}\n} }\n'})
+    assert res.modules[0].target == 37
+
+
+def test_optional_leanback_keeps_the_phone_floor_but_required_leanback_is_tv(tmp_path):
+    opt = MANIFEST % '    <uses-feature android:name="android.software.leanback" android:required="false"/>\n'
+    req = MANIFEST % '    <uses-feature android:name="android.software.leanback"/>\n'
+    a = run(tmp_path / "a", {"app/build.gradle.kts": APP_KTS % "35", "app/src/main/AndroidManifest.xml": opt})
+    b = run(tmp_path / "b", {"app/build.gradle.kts": APP_KTS % "35", "app/src/main/AndroidManifest.xml": req})
+    assert [m.floor_kind for m in a.modules] == ["phone"] and "play-target-floor" in ids(a)[0]
+    assert [m.floor_kind for m in b.modules] == ["tv"] and not [i for i in ids(b) if i.startswith("play-target-floor")]
