@@ -156,7 +156,7 @@ def test_convention_plugin_target_is_used_when_unambiguous(tmp_path):
         "build-logic/convention/src/main/kotlin/AppPlugin.kt": "class P { fun c() { extension.defaultConfig.targetSdk = 36 } }\n",
     })
     (m,) = res.modules
-    assert m.target == 36 and "convention plugin" in m.note
+    assert m.target == 36 and "heuristic" in m.note
     assert not any(f.rule == "target-unresolved" for f in res.findings)
 
 
@@ -215,3 +215,60 @@ def test_optional_leanback_keeps_the_phone_floor_but_required_leanback_is_tv(tmp
     b = run(tmp_path / "b", {"app/build.gradle.kts": APP_KTS % "35", "app/src/main/AndroidManifest.xml": req})
     assert [m.floor_kind for m in a.modules] == ["phone"] and "play-target-floor" in ids(a)[0]
     assert [m.floor_kind for m in b.modules] == ["tv"] and not [i for i in ids(b) if i.startswith("play-target-floor")]
+
+
+def _target(tmp_path, files):
+    res = run(tmp_path, files)
+    assert len(res.modules) == 1, res.modules
+    return res.modules[0]
+
+
+def test_precompiled_script_plugin_matched_by_plugin_id(tmp_path):
+    m = _target(tmp_path, {
+        "app/build.gradle.kts": 'plugins { id("com.android.application")\n id("acme.app.android") }\n',
+        "build-plugin/src/main/kotlin/acme.app.android.gradle.kts": "android { defaultConfig { targetSdk = 36 } }\n",
+        "build-plugin/src/main/kotlin/acme.lib.android.gradle.kts": "android { defaultConfig { targetSdk = 30 } }\n",
+    })
+    assert m.target == 36 and "precompiled script plugin" in m.note
+
+
+def test_convention_plugin_matched_by_alias_when_build_logic_has_several_values(tmp_path):
+    m = _target(tmp_path, {
+        "app/build.gradle.kts": "plugins { alias(libs.plugins.acme.android.application) }\n",
+        "build-logic/convention/src/main/kotlin/AndroidApplicationConventionPlugin.kt": "class A { fun f() { defaultConfig.targetSdk = 36 } }\n",
+        "build-logic/convention/src/main/kotlin/AndroidWearConventionPlugin.kt": "class W { fun f() { defaultConfig.targetSdk = 35 } }\n",
+    })
+    assert m.target == 36 and "convention plugin" in m.note
+
+
+def test_ambiguous_build_logic_stays_unresolved(tmp_path):
+    m = _target(tmp_path, {
+        "app/build.gradle.kts": 'plugins { id("com.android.application") }\n',
+        "build-logic/a/A.kt": "x.targetSdk = 35\n",
+        "build-logic/b/B.kt": "x.targetSdk = 36\n",
+    })
+    assert m.target is None
+
+
+def test_value_from_a_version_catalog_on_the_next_line_and_dotted_accessors(tmp_path):
+    m = _target(tmp_path, {
+        "gradle/libs.versions.toml": '[versions]\nprojectTargetSdkVersion = "36"\nandroid-sdk-target = "35"\n',
+        "app/build.gradle.kts": 'plugins { id("acme.android.application") }\n',
+        "build-logic/c/AppConventionPlugin.kt": 'class P { fun f() { defaultConfig.targetSdk =\n    versionCatalog.findVersion("projectTargetSdkVersion").get().toString().toInt() } }\n',
+    })
+    assert m.target == 36
+    m2 = _target(tmp_path / "x", {
+        "gradle/libs.versions.toml": '[versions]\nandroid-sdk-target = "35"\n',
+        "app/build.gradle.kts": 'plugins { id("com.android.application") }\nandroid { defaultConfig { targetSdk = mihonx.versions.android.sdk.target.get().toInt() } }\n',
+    })
+    assert m2.target == 35
+
+
+def test_shared_root_script_and_flavor_overrides(tmp_path):
+    m = _target(tmp_path, {
+        "common.gradle": "android { defaultConfig { targetSdk 36 } }\n",
+        "app/build.gradle": "plugins { id 'com.android.application' }\napply from: '../common.gradle'\n",
+    })
+    assert m.target == 36 and "shared script" in m.note
+    m2 = _target(tmp_path / "f", {"app/build.gradle.kts": 'plugins { id("com.android.application") }\nandroid { defaultConfig { targetSdk = 36 }\n productFlavors { create("old") { targetSdk = 34 } } }\n'})
+    assert m2.target == 34 and "values differ" in m2.note

@@ -44,6 +44,7 @@ class Result:
     modules: list[Module] = field(default_factory=list)
     files_scanned: int = 0
     target: int = 37
+    pr: object | None = None  # PrInfo when scanned in PR mode
 
 
 # (rule, regex, kinds) -- kinds: "xml" manifest/resources, "code" Kotlin/Java, "manifest" AndroidManifest.xml only
@@ -134,7 +135,7 @@ def scan(root: str, target: int = 37, disabled: set[str] | None = None, include_
     all_files = [p for p in walk(root) if not any(fnmatch.fnmatch(p, g) or fnmatch.fnmatch(p, g + "/*") for g in ignore)]
 
     gradle_files = {p: t for p in all_files if p.rsplit("/", 1)[-1] in ("build.gradle", "build.gradle.kts", "gradle.properties", "settings.gradle", "settings.gradle.kts")
-                    or p.endswith(".toml") or ("buildSrc" in p or "build-logic" in p) and p.endswith((".kt", ".kts", ".gradle"))
+                    or p.endswith(".toml") or p.endswith((".gradle", ".gradle.kts")) or ("buildSrc" in p or "build-logic" in p) and p.endswith((".kt", ".kts", ".gradle"))
                     if (t := read(os.path.join(root, p))) is not None}
     res.modules = find_modules(gradle_files)
 

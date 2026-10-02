@@ -39,3 +39,9 @@ Activity looks the same. A later full-corpus re-run added two more fixes found w
 * Recall is not measured at all. Rules only look at the patterns they were written for; Kotlin/Java is matched per line.
 * Some hits are in vendored libraries or demo apps inside the repository (e.g. `leanback` copies); they are real hits in that repository's code.
 * `target-unresolved` still appears for projects whose targetSdk is computed in custom build logic.
+
+## Resolver check (v0.2.0)
+
+Of the 143 application modules found in the corpus, 21 still have no targetSdk (29 before the resolver). The 6 modules that gained a value
+(AntennaPod `common.gradle`, AppManager `versions.gradle`, komi-store and mihon version catalogs, two ShizukuPlus modules via a root `subprojects` block)
+were each checked against the build files: all 6 are correct. The remaining 21 are mostly computed values (`config.build.targetSdkVersion`, `VersionCodes.*`, `compileSdk` aliases) and projects that hold the value in several unrelated build files.

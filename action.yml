@@ -26,6 +26,18 @@ inputs:
   summary:
     description: "Append a Markdown report to the job summary (true or false)."
     default: "true"
+  pr-mode:
+    description: "On pull requests report only the findings the pull request introduces (needs the base branch in the clone: use fetch-depth: 0). true or false."
+    default: "false"
+  base:
+    description: "Git ref to compare with in PR mode. Default: origin/<base branch of the pull request>."
+    default: ""
+  comment:
+    description: "Keep one sticky pull request comment up to date with the new findings (implies pr-mode; needs pull-requests: write; skipped for forks). true or false."
+    default: "false"
+  github-token:
+    description: "Token used for the sticky comment."
+    default: ${{ github.token }}
   sarif-file:
     description: "Also write a SARIF 2.1.0 report here (upload it with github/codeql-action/upload-sarif)."
     default: ""
@@ -44,6 +56,10 @@ runs:
         INPUT_TESTS: ${{ inputs.include-tests }}
         INPUT_SUMMARY: ${{ inputs.summary }}
         INPUT_SARIF: ${{ inputs.sarif-file }}
+        INPUT_PR_MODE: ${{ inputs.pr-mode }}
+        INPUT_BASE: ${{ inputs.base }}
+        INPUT_COMMENT: ${{ inputs.comment }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
         if command -v python3 > /dev/null 2>&1 && python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)"; then py=python3; else py=python; fi
         export PYTHONPATH="$ACTION_DIR/src"
@@ -53,8 +69,31 @@ runs:
         read -r -a globs <<< "$INPUT_IGNORE"
         for g in "${globs[@]}"; do common+=(--ignore "$g"); done
         if [ "$INPUT_TESTS" = "true" ]; then common+=(--include-tests); fi
+        if [ "$INPUT_COMMENT" = "true" ]; then INPUT_PR_MODE=true; fi
+        if [ "$INPUT_PR_MODE" = "true" ]; then
+          base="$INPUT_BASE"
+          if [ -z "$base" ]; then
+            if [ -z "${GITHUB_BASE_REF:-}" ]; then echo "::error::pr-mode needs a pull_request event or an explicit 'base' input"; exit 2; fi
+            base="origin/$GITHUB_BASE_REF"
+          fi
+          if ! git -C "$INPUT_PATH" rev-parse --verify --quiet "$base^{commit}" > /dev/null; then
+            ref="${base#origin/}"
+            git -C "$INPUT_PATH" fetch --no-tags --depth=1 origin "$ref" > /dev/null 2>&1 || true
+            if git -C "$INPUT_PATH" rev-parse --verify --quiet "origin/$ref^{commit}" > /dev/null; then base="origin/$ref"; fi
+          fi
+          if ! git -C "$INPUT_PATH" rev-parse --verify --quiet "$base^{commit}" > /dev/null; then
+            echo "::error::base '$base' is not available in this clone; use actions/checkout with fetch-depth: 0"; exit 2
+          fi
+          common+=(--base "$base")
+        fi
         if [ -n "$INPUT_SARIF" ]; then
           "$py" -m android_target_ready "${common[@]}" --format sarif --output "$INPUT_SARIF" --fail-on never
+        fi
+        if [ "$INPUT_COMMENT" = "true" ]; then
+          report="${RUNNER_TEMP:-/tmp}/atr-comment.md"
+          "$py" -m android_target_ready "${common[@]}" --format markdown --fail-on never > "$report"
+          clean=""; if grep -qE "^No (new )?findings\." "$report"; then clean="--clean"; fi
+          "$py" -m android_target_ready.comment --body-file "$report" $clean
         fi
         if [ "$INPUT_SUMMARY" = "true" ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
           "$py" -m android_target_ready "${common[@]}" --format markdown --fail-on never >> "$GITHUB_STEP_SUMMARY"

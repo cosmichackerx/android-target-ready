@@ -29,10 +29,17 @@ def summary_line(r: Result) -> str:
             f"{c['error']} error, {c['warning']} warning, {c['info']} info.")
 
 
+def pr_line(r: Result) -> str:
+    pr = r.pr
+    if pr is None:
+        return ""
+    return f"PR mode against `{pr.base}`: {pr.new} new, {pr.existing} already present (not shown), {pr.resolved} resolved."
+
+
 def render_text(r: Result) -> str:
     out: list[str] = []
     if not r.findings:
-        out.append(f"No target {r.target} migration findings.")
+        out.append(f"No new target {r.target} migration findings." if r.pr else f"No target {r.target} migration findings.")
     last = None
     for f in sorted(r.findings, key=lambda f: (f.file, f.line)):
         if f.file != last:
@@ -43,17 +50,21 @@ def render_text(r: Result) -> str:
             out.append(f"         > {f.snippet}")
     out.append("")
     out.append(summary_line(r))
+    if r.pr:
+        out.append(pr_line(r).replace("`", ""))
     return "\n".join(out).lstrip("\n") + "\n"
 
 
 def render_markdown(r: Result) -> str:
     out = ["## android-target-ready", "", summary_line(r), ""]
+    if r.pr:
+        out += [pr_line(r), ""]
     if r.findings:
         out += ["| Severity | Rule | API | Where | Message |", "|---|---|---|---|---|"]
         for f in sorted(r.findings, key=lambda f: (ORDER[f.severity], f.file, f.line)):
             out.append(f"| {f.severity} | [`{f.rule}`]({f.url}) | {f.since or '-'} | `{f.file}:{f.line}` | {f.message.replace('|', chr(92) + '|')} |")
     else:
-        out.append("No findings.")
+        out.append("No new findings." if r.pr else "No findings.")
     return "\n".join(out) + "\n"
 
 
@@ -62,6 +73,7 @@ def render_json(r: Result) -> str:
         "tool": "android-target-ready", "version": __version__, "target": r.target, "filesScanned": r.files_scanned,
         "modules": [{"dir": m.dir, "buildFile": m.build_file, "targetSdk": m.target, "formFactor": m.floor_kind} for m in r.modules],
         "summary": counts(r),
+        **({"pr": {"base": r.pr.base, "new": r.pr.new, "existing": r.pr.existing, "resolved": r.pr.resolved}} if r.pr else {}),
         "findings": [{"rule": f.rule, "severity": f.severity, "file": f.file, "line": f.line, "since": f.since, "message": f.message, "snippet": f.snippet, "docs": f.url} for f in r.findings],
     }, indent=2) + "\n"
 

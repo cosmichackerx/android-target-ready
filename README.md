@@ -76,7 +76,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
-      - uses: cosmichackerx/android-target-ready@v0.1.0
+      - uses: cosmichackerx/android-target-ready@v0.2.0
         with:
           target: "37"        # 36 or 37
           fail-on: error      # error | warning | never
@@ -85,11 +85,42 @@ jobs:
 Inputs: `path`, `target`, `fail-on`, `disable`, `ignore`, `include-tests`, `summary` (job summary Markdown), `sarif-file`
 (write SARIF, then upload with `github/codeql-action/upload-sarif`). Findings appear as annotations on the pull request.
 
+### PR mode and sticky comment
+
+On a pull request you usually care about what the change *adds*, not the backlog. With `pr-mode` the Action (or `--base REF` on the command line) scans the base revision too and reports only findings that are new. Findings are matched by rule, file and the normalised source line, not the line number, so moving code around does not make old findings look new; a second copy of an existing line does count as new.
+
+```yaml
+name: android-target-ready
+on: [pull_request]
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write      # only for the sticky comment
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0        # the base branch must be in the clone
+      - uses: cosmichackerx/android-target-ready@v0.2.0
+        with:
+          comment: "true"       # implies pr-mode; one comment, updated in place
+          fail-on: error        # only NEW findings can fail the pull request
+```
+
+The comment is created on the first new finding, updated in place afterwards (marker `<!-- android-target-ready:sticky -->`), and rewritten to "No new findings." once they are fixed; a clean pull request that never had a comment gets none. Pull requests from forks have a read-only token, so the comment is skipped with a notice there (annotations and the job summary still work). Real comment from this repository's own CI (pull request #9):
+
+> **android-target-ready**: 3 source/manifest/resource file(s) scanned for target 37; application modules: app: targetSdk 37. 0 error, 1 warning, 0 info.
+> PR mode against `origin/main`: 1 new, 0 already present (not shown), 0 resolved.
+> | warning | `back-pressed-override` | 36 | `app/src/main/java/Added.kt:2` | onBackPressed() is not called on Android 16 devices once the app targets 36 ... |
+
+Extra inputs: `pr-mode`, `base` (default `origin/<base branch>`), `comment`, `github-token`.
+
 ## Command line
 
     android-target-ready [path] [--target 36|37] [-f text|markdown|json|github|sarif] [-o FILE]
                          [--fail-on error|warning|never] [--disable RULE] [--ignore GLOB]
-                         [--include-tests] [--list-rules]
+                         [--include-tests] [--base REF] [--list-rules]
 
 Exit code 1 when a finding at or above `--fail-on` exists (default `error`), 2 on usage errors.
 Suppress a finding in code with a comment on the same or the previous line: `// android-target-ready: ignore back-keycode`
@@ -128,7 +159,7 @@ Severity can be higher at 37 where a temporary opt-out disappears.
 | `sms-otp-delay` | 37 | info | Standard OTP SMS messages reach most apps only after three hours when targeting 37 (SMS Retriever / User Consent are exempt). | [docs](https://developer.android.com/about/versions/17/behavior-changes-17) |
 
 How `targetSdk` is found: literals, `libs.versions.toml`, `gradle.properties`, `ext`/`extra`, Kotlin `const val`,
-AGP 9 `targetSdk { version = release(..) }`, and a single value set inside `build-logic`/`buildSrc`. If it cannot be determined
+AGP 9 `targetSdk { version = release(..) }`, and, when the module's own build file does not say, heuristics in this order: a precompiled script plugin named like the plugin id the module applies, a convention plugin class whose name matches the applied alias, all of `build-logic`/`buildSrc`/`build-plugin` when they agree on one value, and shared root scripts (`common.gradle`, `subprojects {}`) when they agree. Several values in one file (product flavors) report the lowest. If it cannot be determined
 you get an `info` finding (`target-unresolved`) instead of a guess.
 
 ## How it relates to other tools

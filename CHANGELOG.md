@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 - 2026-10-03
+
+* **PR mode (issue #1):** `--base REF` and the Action inputs `pr-mode`, `base`, `comment`, `github-token`; only new findings are reported and can fail the build; a sticky pull request comment (`android_target_ready.comment`) is created/updated in place and skipped for forks. CI exercises both on every pull request (Linux and Windows).
+* **targetSdk resolver (issue #2):** precompiled script plugins matched by plugin id, convention plugin classes matched by alias, multi-line `findVersion(..)`/dotted catalog accessors, shared root scripts such as `common.gradle`, lowest value across product flavors. On the 100-repository corpus 6 more modules got a target (all 6 checked by hand), unresolved went from 29 to 21 of 143 modules; `build-plugin` directories are no longer mistaken for apps.
+* Windows CI fix for the CLI test (empty environment).
+
 ## 0.1.0 - 2026-10-03
 
 First release.
