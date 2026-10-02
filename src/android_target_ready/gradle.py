@@ -71,7 +71,8 @@ def resolve(expr: str, consts: dict[str, int]) -> tuple[int | None, str]:
         return int(m.group(1)), "literal"
     tokens = [t for t in re.findall(r"[A-Za-z_]\w*", e) if t.lower() not in _NOISE]
     quoted = re.findall(r"""["'](\w[\w.\-]*)["']""", e)
-    for cand in [*quoted, "".join(tokens), *(reversed(tokens))]:
+    suffixes = ["".join(tokens[i:]) for i in range(len(tokens))]
+    for cand in [*quoted, *suffixes, *(reversed(tokens))]:
         if cand and norm(cand) in consts:
             return consts[norm(cand)], f"via {cand}"
     return None, "unresolved"
@@ -85,27 +86,83 @@ def _declares_app(code: str) -> bool:
     return False
 
 
+_CONV_TARGET = re.compile(r"""\btargetSdk(?:Version)?(?:\s*=|\s*\(|[ \t]+(?=[\w"']))\s*([^;{}]{1,160})""")
+_PLUGIN_DIRS = ("build-logic", "buildSrc", "build-plugin")
+
+
 def _is_plugin_source(path: str) -> bool:
-    """build-logic / buildSrc build files configure convention plugins; they are not apps themselves."""
-    return any(seg in ("build-logic", "buildSrc") for seg in path.split("/")[:-1])
+    """build-logic / buildSrc / build-plugin directories configure plugins; their build files are not apps."""
+    return any(seg in _PLUGIN_DIRS for seg in path.split("/")[:-1])
 
 
-_CONV_TARGET = re.compile(r"""\btargetSdk(?:Version)?\s*(?:=|\()\s*([\w.]+)""")
+def _expr_head(expr: str) -> str:
+    """The expression after `targetSdk =`: up to the end of the statement, joined over line breaks when the value starts on the next line."""
+    lines = [ln.strip() for ln in expr.splitlines()]
+    out = lines[0] if lines and lines[0] else ""
+    for ln in lines[1:3]:
+        if out and not out.endswith((".", "(", "?", ":")) and not ln.startswith((".", "?", ":")):
+            break
+        out += ln
+    return out
 
 
-def convention_target(files: dict[str, str], consts: dict[str, int]) -> tuple[int | None, str]:
-    """Heuristic: a single targetSdk value set inside build-logic/buildSrc sources."""
-    found: dict[int, str] = {}
-    for path, text in sorted(files.items()):
-        if not _is_plugin_source(path) or not path.endswith((".kt", ".kts", ".gradle")):
-            continue
-        for m in _CONV_TARGET.finditer(strip_comments(text)):
-            val, _ = resolve(m.group(1), consts)
-            if val is not None:
-                found.setdefault(val, path)
-    if len(found) == 1:
-        (v, path), = found.items()
-        return v, f"via convention plugin {path} (heuristic)"
+def _values(path: str, text: str, consts: dict[str, int]) -> list[int]:
+    vals = []
+    for m in _CONV_TARGET.finditer(strip_comments(text)):
+        v, _ = resolve(_expr_head(m.group(1)), consts)
+        if v is not None:
+            vals.append(v)
+    return vals
+
+
+def _applied_plugins(code: str) -> tuple[set[str], set[str]]:
+    """(plugin ids written as strings, normalised alias tails such as 'androidapplication')."""
+    ids = set(re.findall(r"""\bid\s*\(?\s*["']([\w.\-]+)["']""", code))
+    tails: set[str] = set()
+    for m in re.finditer(r"""libs\.plugins\.([\w.]+)""", code):
+        parts = [p for p in m.group(1).split(".") if p not in ("get", "id", "pluginid")]
+        for n in (2, 3):
+            if len(parts) >= n:
+                tails.add(norm("".join(parts[-n:])))
+    return ids, tails
+
+
+def convention_target(files: dict[str, str], consts: dict[str, int], module_code: str = "", module_path: str = "") -> tuple[int | None, str]:
+    """Heuristics for a targetSdk that is not in the module's own build file, from most to least specific.
+
+    1. a precompiled script plugin whose file name is the plugin id the module applies (`thunderbird.app.android.gradle.kts`);
+    2. a plugin class whose name contains the applied plugin alias (`libs.plugins.x.android.application` -> AndroidApplicationConventionPlugin);
+    3. any plugin source (build-logic / buildSrc / build-plugin) when they all agree on one value;
+    4. shared scripts at the repository root (`common.gradle`, a root `subprojects {}` block) when they agree.
+    A result is only returned when the chosen group agrees on exactly one value."""
+    ids, tails = _applied_plugins(module_code)
+    plugin_files = {p: t for p, t in files.items() if _is_plugin_source(p) and p.endswith((".kt", ".kts", ".gradle"))}
+
+    def pick(group: dict[str, str], why: str) -> tuple[int | None, str]:
+        found: dict[int, str] = {}
+        for p, t in sorted(group.items()):
+            for v in _values(p, t, consts):
+                found.setdefault(v, p)
+        if len(found) == 1:
+            (v, p), = found.items()
+            return v, f"via {why} {p} (heuristic)"
+        return None, ""
+
+    by_id = {p: t for p, t in plugin_files.items() if re.sub(r"\.gradle(\.kts)?$", "", p.rsplit("/", 1)[-1]) in ids}
+    by_alias = {p: t for p, t in plugin_files.items() if tails and any(tl in norm(p.rsplit("/", 1)[-1]) for tl in tails)}
+    def shared_script(p: str) -> bool:
+        name = p.rsplit("/", 1)[-1]
+        if p == module_path or _is_plugin_source(p) or not name.endswith((".gradle", ".gradle.kts")) or name.startswith("settings."):
+            return False
+        depth = p.count("/")
+        return depth == 0 or (depth == 1 and name not in ("build.gradle", "build.gradle.kts"))
+
+    roots = {p: t for p, t in files.items() if shared_script(p)}
+    for group, why in ((by_id, "precompiled script plugin"), (by_alias, "convention plugin"), (plugin_files, "build-logic"), (roots, "shared script")):
+        if group:
+            v, note = pick(group, why)
+            if v is not None:
+                return v, note
     return None, "unresolved"
 
 
@@ -126,16 +183,24 @@ def find_modules(files: dict[str, str]) -> list[Module]:
                 val, how = resolve(dsl.group(1), consts)
                 mod.target, mod.note = val, (how if val is None else f"{how} (targetSdk {{ version = release(..) }})")
                 mod.expr, mod.target_line = f"release({dsl.group(1)})", code.count("\n", 0, dsl.start()) + 1
-            for m in ([] if dsl else _TARGET.finditer(code)):
-                line = code.count("\n", 0, m.start()) + 1
-                val, how = resolve(m.group("expr"), consts)
-                mod.expr, mod.target_line = m.group("expr").strip(), line
-                if val is not None:
-                    mod.target, mod.note = val, how
-                    break
-                mod.note = how
+            else:
+                found: list[tuple[int, int, str]] = []
+                for m in _TARGET.finditer(code):
+                    line = code.count("\n", 0, m.start()) + 1
+                    val, how = resolve(m.group("expr"), consts)
+                    if val is not None:
+                        found.append((val, line, how))
+                    elif mod.target_line is None:
+                        mod.expr, mod.target_line, mod.note = m.group("expr").strip(), line, how
+                if found:
+                    val, line, how = min(found)
+                    mod.target, mod.target_line, mod.note = val, line, how
+                    mod.expr = None
+                    others = sorted({v for v, _, _ in found})
+                    if len(others) > 1:
+                        mod.note = f"{how}; values differ in this file ({', '.join(map(str, others))}), the lowest is used"
         if is_app and mod.target is None:
-            v, how = convention_target(files, consts)
+            v, how = convention_target(files, consts, code, path)
             if v is not None:
                 mod.target, mod.note = v, how
         mods.append(mod)

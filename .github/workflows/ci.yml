@@ -102,3 +102,73 @@ jobs:
         with:
           path: tests/fixtures/app-ready
           fail-on: error
+
+  pr-mode-selftest:
+    name: pr-mode-selftest (${{ matrix.os }})
+    if: github.event_name == 'pull_request'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Nothing is new against the base, so the failing fixture passes in PR mode
+        uses: ./
+        with:
+          path: tests/fixtures/app-needs-work
+          pr-mode: "true"
+      - name: Add a finding that the base does not have
+        run: |
+          printf 'class Added : AppCompatActivity() {\n  override fun onBackPressed() {}\n  fun k(c: Int) = c == KeyEvent.KEYCODE_BACK\n}\n' > tests/fixtures/app-ready/app/src/main/java/Added.kt
+      - name: The new finding is reported and (as warning) fails with fail-on warning
+        id: added
+        continue-on-error: true
+        uses: ./
+        with:
+          path: tests/fixtures/app-ready
+          pr-mode: "true"
+          fail-on: warning
+      - name: It failed because of the new finding
+        run: |
+          if [ "${{ steps.added.outcome }}" != "failure" ]; then echo "expected failure, got ${{ steps.added.outcome }}"; exit 1; fi
+
+  comment-selftest:
+    name: sticky comment (same-repo pull requests)
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Add a finding that the base does not have
+        run: printf 'class Added : AppCompatActivity() {\n  override fun onBackPressed() {}\n}\n' > tests/fixtures/app-ready/app/src/main/java/Added.kt
+      - name: Run twice with comment
+        uses: ./
+        with:
+          path: tests/fixtures/app-ready
+          comment: "true"
+          fail-on: never
+      - name: Run again (must update, not add a second comment)
+        uses: ./
+        with:
+          path: tests/fixtures/app-ready
+          comment: "true"
+          fail-on: never
+      - name: Exactly one sticky comment exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          n=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" --paginate -q '.[]|select(.body|contains("android-target-ready:sticky"))|.id' | wc -l | tr -d ' ')
+          echo "sticky comments: $n"
+          test "$n" = "1"

@@ -6,6 +6,7 @@ import sys
 from . import __version__
 from .report import meets_threshold, render_github, render_json, render_markdown, render_sarif, render_text
 from .rules import RULES
+from .pr import BaseError, scan_pr
 from .scan import scan
 
 RENDER = {"text": render_text, "markdown": render_markdown, "json": render_json, "github": render_github, "sarif": render_sarif}
@@ -21,6 +22,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--disable", action="append", default=[], metavar="RULE", help="turn a rule off (repeatable)")
     p.add_argument("--ignore", action="append", default=[], metavar="GLOB", help="leave matching paths out (repeatable)")
     p.add_argument("--include-tests", action="store_true", help="also scan src/test and src/androidTest")
+    p.add_argument("--base", metavar="REF", help="PR mode: scan this git ref too and report only the findings that are new (needs the ref in the local clone)")
     p.add_argument("--list-rules", action="store_true")
     p.add_argument("--version", action="version", version=f"android-target-ready {__version__}")
     a = p.parse_args(argv)
@@ -33,8 +35,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"android-target-ready: unknown rule(s): {', '.join(unknown)} (see --list-rules)", file=sys.stderr)
         return 2
     try:
-        res = scan(a.path, target=a.target, disabled=set(a.disable), include_tests=a.include_tests, ignore=a.ignore)
-    except OSError as e:
+        kw = dict(target=a.target, disabled=set(a.disable), include_tests=a.include_tests, ignore=a.ignore)
+        res = scan_pr(a.path, a.base, **kw) if a.base else scan(a.path, **kw)
+    except (OSError, BaseError) as e:
         print(f"android-target-ready: {e}", file=sys.stderr)
         return 2
     text = RENDER[a.format](res)
