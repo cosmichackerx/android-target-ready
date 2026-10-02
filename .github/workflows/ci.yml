@@ -91,3 +91,14 @@ jobs:
           target: "36"
           disable: "play-target-floor edge-to-edge-opt-out fixed-orientation non-resizeable"
           fail-on: error
+
+  consumer:
+    # Uses the published release the way a user's workflow would.
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cosmichackerx/android-target-ready@v0.1.0
+        with:
+          path: tests/fixtures/app-ready
+          fail-on: error
