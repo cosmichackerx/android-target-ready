@@ -22,7 +22,7 @@ repos with ≥ 800-1500 stars, pushed after 2026-08-01, < 400 MB, shallow-cloned
 * 1 × an `androidDeviceTest` manifest (test directory not recognised).
 
 Also found by looking at the corpus as a whole: root `build.gradle(.kts)` files with `alias(libs.plugins.android.application) apply false`
-were counted as application modules (221 modules, 116 with unresolved targetSdk instead of 145 and 30 today),
+were counted as application modules (221 modules, 116 with unresolved targetSdk instead of 145 and 29 today),
 and AGP 9's `targetSdk { version = release(36) }` was not understood. All fixed, each with a regression test.
 
 ## Hand-check 2 (after the fixes, different random seed)
