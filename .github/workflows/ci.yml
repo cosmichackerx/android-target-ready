@@ -152,8 +152,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Add a finding that the base does not have
-        run: printf 'class Added : AppCompatActivity() {\n  override fun onBackPressed() {}\n}\n' > tests/fixtures/app-ready/app/src/main/java/Added.kt
-      - name: Run twice with comment
+        run: |
+          printf 'class Added : AppCompatActivity() {\n  override fun onBackPressed() {}\n}\n' > tests/fixtures/app-ready/app/src/main/java/Added.kt
+      - name: Run with comment
         uses: ./
         with:
           path: tests/fixtures/app-ready
