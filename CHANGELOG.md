@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+* CI: README unit-test count and action pins are checked by [claims-check](https://github.com/cosmichackerx/claims-check) (`.claims.json`). The first run found nothing stale.
+
 ## 0.2.3 - 2026-10-03
 
 * `action.yml` description shortened to the GitHub Marketplace limit of 125 characters (it was longer, which blocks publishing); new CI job `action-metadata` checks name, description length and branding.
