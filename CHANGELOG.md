@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 - 2026-10-03
+
+Three bugs found by cross-checking with [android-target-lint](https://github.com/cosmichackerx/android-target-lint) on 52 shared public repositories (see its [docs/corpus-comparison.md](https://github.com/cosmichackerx/android-target-lint/blob/main/docs/corpus-comparison.md); 71 % agreement overall, which is agreement, not accuracy):
+
+* **Java banner comments:** a banner such as `/*//////// ... ////////*/` was treated as a nested comment (Kotlin nests, Java does not) and blanked the rest of the file, hiding findings after it (seen in NewPipe's `MainActivity`). Block comments now nest only in Kotlin. This may have caused missed findings in earlier runs.
+* **Edge-to-edge opt-out** with other attributes (for example `tools:targetApi`) between the name and the value was missed.
+* `requestedOrientation == X` (a read) was reported as an assignment.
+
 ## 0.2.0 - 2026-10-03
 
 * **PR mode (issue #1):** `--base REF` and the Action inputs `pr-mode`, `base`, `comment`, `github-token`; only new findings are reported and can fail the build; a sticky pull request comment (`android_target_ready.comment`) is created/updated in place and skipped for forks. CI exercises both on every pull request (Linux and Windows).
