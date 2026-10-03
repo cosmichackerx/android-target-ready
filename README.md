@@ -76,7 +76,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
-      - uses: cosmichackerx/android-target-ready@v0.2.0
+      - uses: cosmichackerx/android-target-ready@v0.2.1
         with:
           target: "37"        # 36 or 37
           fail-on: error      # error | warning | never
@@ -102,7 +102,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0        # the base branch must be in the clone
-      - uses: cosmichackerx/android-target-ready@v0.2.0
+      - uses: cosmichackerx/android-target-ready@v0.2.1
         with:
           comment: "true"       # implies pr-mode; one comment, updated in place
           fail-on: error        # only NEW findings can fail the pull request
@@ -172,7 +172,7 @@ you get an `info` finding (`target-unresolved`) instead of a guess.
 
 ## Limitations
 
-* Pattern based, line by line. No type resolution: an `onBackPressed()` is only counted in files that extend a class called `*Activity` or `*Dialog`; a class hierarchy through a differently named base class is missed.
+* Pattern based, line by line. No type resolution (the sibling [android-target-lint](https://github.com/cosmichackerx/android-target-lint) resolves types; on 52 shared repositories the two agreed on 71 % of the combined findings of six overlapping rules, see its [comparison](https://github.com/cosmichackerx/android-target-lint/blob/main/docs/corpus-comparison.md)): an `onBackPressed()` is only counted in files that extend a class called `*Activity` or `*Dialog`; a class hierarchy through a differently named base class is missed.
 * Does not run Gradle, so targetSdk set by custom plugins, product flavors or `-P` flags can be unresolved or wrong.
 * Not every Android 16/17 change is detectable statically; only the rules above exist. Recall is not measured.
 * Measured on 100 public repos with a 40-finding hand-check (97.5 % after fixes, 82.5 % before): see [docs/precision.md](docs/precision.md). That is a sample read by the author, not a benchmark.

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "android-target-ready"
-version = "0.2.0"
+version = "0.2.1"
 description = "Static scan of an Android project (Kotlin, Java, Gradle, manifests, resources) for what changes when targetSdk moves to 36 and 37: edge-to-edge, predictive back, large-screen orientation, local network permission and more. SARIF and GitHub Action included."
 readme = "README.md"
 requires-python = ">=3.9"
