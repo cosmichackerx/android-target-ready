@@ -16,6 +16,25 @@ level requirement** (36 for phones since 2026-08-31, with Wear OS / TV / Automot
 * Every rule links to the official Android documentation page that describes the change.
 * Honest about its limits: see [Limitations](#limitations) and [docs/precision.md](docs/precision.md).
 
+## At a glance
+
+|  | Lite (try it in a minute) | Full (keep it in CI) |
+|---|---|---|
+| How | `pip install git+https://github.com/cosmichackerx/android-target-ready` then `android-target-ready .` | the [GitHub Action](#github-action) (job summary, SARIF), `--base REF` PR mode and the [ignore comments](#command-line) |
+
+### Validation / results
+
+Every number below is from this repository's own tests or scripts (see the linked sections). "Not proven" is as important as "Result".
+
+| What is claimed | Checked against | Size | Result | Not proven |
+|---|---|---|---|---|
+| A finding is the construct the Android docs describe | Hand check of random findings on a 100-repository corpus ([docs/precision.md](docs/precision.md)) | 40 findings, then 40 more with a different seed after fixes | 33/40 (82.5 %) before the fixes, 39/40 (97.5 %) after | Rules were tuned on the same corpus, so 97.5 % is optimistic; the author read the findings; the Android docs are the reference, not a device run |
+| It agrees with a type-resolving linter | [android-target-lint](https://github.com/cosmichackerx/android-target-lint) on 52 shared repositories (six overlapping rules) | 52 repositories | 71 % agreement on the combined findings | Disagreement is not an error count; neither tool is ground truth |
+| Recall | - | - | **Not measured** | Pattern-based, line by line, no type resolution. There is no oracle: Android Lint and a run on an Android 16/17 device stay authoritative |
+| Rule logic | Unit tests on Linux, Windows, macOS | 46 tests | green | - |
+
+**Releases:** 5 releases, v0.1.0 to v0.2.3, all published between 2026-10-02 and 2026-10-03 (days old). See [CHANGELOG.md](CHANGELOG.md) and the [Releases page](https://github.com/cosmichackerx/android-target-ready/releases). There is no weekly watcher for this tool: when Android's behaviour-change pages change, the rules are updated by hand.
+
 ## Install and run
 
     pip install git+https://github.com/cosmichackerx/android-target-ready
