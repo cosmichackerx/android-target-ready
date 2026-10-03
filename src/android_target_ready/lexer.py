@@ -5,7 +5,8 @@ Line numbers are preserved: every removed character becomes a space, newlines st
 from __future__ import annotations
 
 
-def strip_comments(src: str) -> str:
+def strip_comments(src: str, nested: bool = True) -> str:
+    """nested=True for Kotlin (block comments nest); Java and Groovy do not nest, and banners like /*////*/ are common there."""
     out: list[str] = []
     i, n = 0, len(src)
 
@@ -23,7 +24,7 @@ def strip_comments(src: str) -> str:
         elif two == "/*":
             depth, j = 1, i + 2
             while j < n and depth:  # Kotlin nests block comments; Java does not, but real Java never relies on that
-                if src.startswith("/*", j):
+                if nested and src.startswith("/*", j):
                     depth += 1
                     j += 2
                 elif src.startswith("*/", j):

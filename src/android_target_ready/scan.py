@@ -168,7 +168,7 @@ def scan(root: str, target: int = 37, disabled: set[str] | None = None, include_
         is_manifest = path.endswith("AndroidManifest.xml")
         raw_lines = text.splitlines()
         if is_code:
-            body = strip_comments(text)
+            body = strip_comments(text, nested=not path.endswith(".java"))
         else:
             body = re.sub(r"<!--.*?-->", lambda m: re.sub(r"[^\n]", " ", m.group(0)), text, flags=re.S)
         lines = body.splitlines()
