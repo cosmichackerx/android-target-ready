@@ -60,7 +60,7 @@ LINE_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
     ("elegant-text-height", re.compile(r"elegantTextHeight[\"']?\s*(?:=\s*[\"']false[\"']|>\s*false\b)"), "xml"),
     ("elegant-text-height", re.compile(r"(?:setElegantTextHeight\s*\(\s*false\s*\)|\bisElegantTextHeight\s*=\s*false\b)"), "code"),
     ("back-pressed-override", re.compile(r"\boverride\s+fun\s+onBackPressed\s*\(\s*\)\s*(?![:\s]*\w)|\b(?:public|protected)\s+void\s+onBackPressed\s*\(\s*\)"), "code"),
-    ("back-keycode", re.compile(r"(?:==|\bcase)\s*(?:KeyEvent\.)?KEYCODE_BACK\b|\bKEYCODE_BACK\s*(?:==|->|:)"), "code"),
+    ("back-keycode", re.compile(r"(?:[=!]=|\bcase)\s*(?:KeyEvent\.)?KEYCODE_BACK\b|\bKEYCODE_BACK\s*(?:[=!]=|->|:)"), "code"),
     ("fixed-rate-scheduling", re.compile(r"\.scheduleAtFixedRate\s*\("), "code"),
     ("set-requested-orientation", re.compile(rf"(?:setRequestedOrientation\s*\(|\brequestedOrientation\s*=(?!=))[^\n]*{ORIENT_CONST}"), "code"),
     ("bal-legacy-mode", re.compile(r"\bMODE_BACKGROUND_ACTIVITY_START_ALLOWED\b"), "code"),

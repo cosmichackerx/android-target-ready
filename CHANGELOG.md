@@ -3,6 +3,7 @@
 ## 0.2.2 - 2026-10-03
 
 * `set-requested-orientation` no longer reports an assignment to a local variable named `requestedOrientation` (`int requestedOrientation; requestedOrientation = ...`; seen in Telegram-X's `CameraController`, found by the atl comparison with dependency jars resolved).
+* `back-keycode` also matches `!= KEYCODE_BACK` (`if (keyCode != KeyEvent.KEYCODE_BACK || ...) return false` handles the back key as much as `==` does; seen in Anki-Android and SmartTube; on the 54-repository comparison corpus this adds 10 findings, all inside key handlers: 3 in `onKey` callbacks and 7 in terminal-emulator View handlers).
 
 ## 0.2.1 - 2026-10-03
 
