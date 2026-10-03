@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3 - 2026-10-03
+
+* `action.yml` description shortened to the GitHub Marketplace limit of 125 characters (it was longer, which blocks publishing); new CI job `action-metadata` checks name, description length and branding.
+
 ## 0.2.2 - 2026-10-03
 
 * `set-requested-orientation` no longer reports an assignment to a local variable named `requestedOrientation` (`int requestedOrientation; requestedOrientation = ...`; seen in Telegram-X's `CameraController`, found by the atl comparison with dependency jars resolved).

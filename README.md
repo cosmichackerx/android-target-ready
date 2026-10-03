@@ -77,7 +77,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
-      - uses: cosmichackerx/android-target-ready@v0.2.2
+      - uses: cosmichackerx/android-target-ready@v0.2.3
         with:
           target: "37"        # 36 or 37
           fail-on: error      # error | warning | never
@@ -103,7 +103,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0        # the base branch must be in the clone
-      - uses: cosmichackerx/android-target-ready@v0.2.2
+      - uses: cosmichackerx/android-target-ready@v0.2.3
         with:
           comment: "true"       # implies pr-mode; one comment, updated in place
           fail-on: error        # only NEW findings can fail the pull request
