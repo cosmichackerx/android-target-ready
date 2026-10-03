@@ -71,6 +71,8 @@ LINE_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
     ("remoteviews-bitmap", re.compile(r"\bsetImageViewBitmap\s*\(|\bsetBitmap\s*\(\s*R\.id|\bsetImageViewIcon\s*\([^)]*createWithBitmap"), "code"),
 ]
 ACTIVITY_LIKE = re.compile(r"(?:\bextends|:)\s*[\w.]*(?:Activity|Dialog)\b")  # onBackPressed only matters on Activity/Dialog subclasses
+LOCAL_ORIENT_VAR = re.compile(r"\b(?:int|Integer|var|val)\s+requestedOrientation\b")
+BARE_ORIENT_ASSIGN = re.compile(r"(?<![.\w?])requestedOrientation\s*=(?!=)")
 IMPORT_LINE = re.compile(r"\s*import\s")
 DECLARATION = re.compile(r"\s*(?:@\w+(?:\([^)]*\))?\s+)*(?:public|protected|private)\s")  # method/field declarations, not calls
 LOCAL_NET = re.compile(r"\bNsdManager\b|\bMulticastSocket\b|\bcreateMulticastLock\b|\bjavax\.jmdns\b|\bJmDNS\b")
@@ -188,6 +190,8 @@ def scan(root: str, target: int = 37, disabled: set[str] | None = None, include_
                 if rule_id == "back-pressed-override" and not ACTIVITY_LIKE.search(body):
                     break  # e.g. a game engine's own Scene/Window.onBackPressed
                 if rx.search(line):
+                    if rule_id == "set-requested-orientation" and LOCAL_ORIENT_VAR.search(body) and BARE_ORIENT_ASSIGN.search(line) and "etRequestedOrientation" not in line:
+                        continue  # assignment to a local variable that happens to be called requestedOrientation
                     add(rule_id, path, i + 1, raw_lines, i)
         if is_code:
             if not has_local_net_perm:

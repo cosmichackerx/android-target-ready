@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 - 2026-10-03
+
+* `set-requested-orientation` no longer reports an assignment to a local variable named `requestedOrientation` (`int requestedOrientation; requestedOrientation = ...`; seen in Telegram-X's `CameraController`, found by the atl comparison with dependency jars resolved).
+
 ## 0.2.1 - 2026-10-03
 
 Three bugs found by cross-checking with [android-target-lint](https://github.com/cosmichackerx/android-target-lint) on 52 shared public repositories (see its [docs/corpus-comparison.md](https://github.com/cosmichackerx/android-target-lint/blob/main/docs/corpus-comparison.md); 71 % agreement overall, which is agreement, not accuracy):
