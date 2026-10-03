@@ -37,6 +37,17 @@ def test_requested_orientation_comparison_is_not_an_assignment(tmp_path):
     assert [f.line for f in r.findings if f.rule == "set-requested-orientation"] == [4]
 
 
+def test_requested_orientation_local_variable_is_not_the_activity_property(tmp_path):
+    # found by comparing with android-target-lint on Telegram-X: `int requestedOrientation; requestedOrientation = ...` in a helper class
+    code = ("class CameraController {\n  boolean f(int r) {\n    int requestedOrientation;\n    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;\n"
+            "    activity.setRequestedOrientation(requestedOrientation);\n    return true;\n  }\n}\n")
+    r = run(tmp_path, app(extra={"app/src/main/java/C.java": code}))
+    assert [f.line for f in r.findings if f.rule == "set-requested-orientation"] == []
+    code2 = "class A : Activity() {\n  fun f() {\n    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT\n  }\n}\n"
+    r = run(tmp_path, app(extra={"app/src/main/java/A.kt": code2}))
+    assert [f.line for f in r.findings if f.rule == "set-requested-orientation"] == [3]
+
+
 def test_java_banner_comment_does_not_swallow_code(tmp_path):
     # found by comparing with android-target-lint on NewPipe: /*////...////*/ banners opened a "nested" comment in the lexer
     code = "public class A extends AppCompatActivity {\n    /*//////////////////\n    // Lifecycle\n    //////////////////*/\n\n    @Override\n    public void onBackPressed() {\n    }\n}\n"
@@ -212,7 +223,7 @@ def test_imports_and_declarations_are_not_uses(tmp_path):
 
 def test_back_rules_skip_custom_methods_and_non_handling_mentions(tmp_path):
     res = run(tmp_path, app(extra={
-        "app/src/main/java/a/Frag.kt": "open class F {\n  open fun onBackPressed() {}\n  override fun onBackPressed(): Boolean { return false }\n  fun go() { keyevent(KeyEvent.KEYCODE_BACK) }\n  fun n(k: Int) = k != KeyEvent.KEYCODE_BACK\n}\n"}))
+        "app/src/main/java/a/Frag.kt": "open class F {\n  open fun onBackPressed() {}\n  override fun onBackPressed(): Boolean { return false }\n  fun go() { keyevent(KeyEvent.KEYCODE_BACK) }\n}\n"}))
     assert ids(res) == []
 
 
@@ -294,3 +305,10 @@ def test_shared_root_script_and_flavor_overrides(tmp_path):
     assert m.target == 36 and "shared script" in m.note
     m2 = _target(tmp_path / "f", {"app/build.gradle.kts": 'plugins { id("com.android.application") }\nandroid { defaultConfig { targetSdk = 36 }\n productFlavors { create("old") { targetSdk = 34 } } }\n'})
     assert m2.target == 34 and "values differ" in m2.note
+
+
+def test_back_keycode_inequality_is_reported(tmp_path):
+    # found by comparing with android-target-lint: `keyCode != KEYCODE_BACK` (Anki-Android, SmartTube) handles the back key too
+    code = "class A : Activity() {\n  fun f(keyCode: Int): Boolean {\n    return keyCode != KeyEvent.KEYCODE_BACK\n  }\n}\n"
+    r = run(tmp_path, app(extra={"app/src/main/java/A.kt": code}))
+    assert [f.line for f in r.findings if f.rule == "back-keycode"] == [3]
