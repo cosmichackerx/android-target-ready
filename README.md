@@ -1,6 +1,7 @@
 # android-target-ready
 
 [![CI](https://github.com/cosmichackerx/android-target-ready/actions/workflows/ci.yml/badge.svg)](https://github.com/cosmichackerx/android-target-ready/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/cosmichackerx/android-target-ready?sort=semver)](https://github.com/cosmichackerx/android-target-ready/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Is your Android app ready for `targetSdk` 36 and 37?** A fast static scanner and GitHub Action that finds the code, manifest
