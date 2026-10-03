@@ -22,6 +22,21 @@ def test_edge_to_edge_opt_out_only_when_true(tmp_path):
     assert r.findings[0].line == 3
 
 
+def test_edge_to_edge_opt_out_with_extra_attributes(tmp_path):
+    # found by comparing with android-target-lint on microg/GmsCore: tools:targetApi sits between name and value
+    r = run(tmp_path, app(extra={
+        "app/src/main/res/values-v35/themes.xml": '<resources>\n<style name="A">\n<item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>\n</style>\n</resources>\n'}))
+    assert ids(r) == ["edge-to-edge-opt-out:error"]
+    assert r.findings[0].line == 3
+
+
+def test_requested_orientation_comparison_is_not_an_assignment(tmp_path):
+    # found by comparing with android-target-lint: `requestedOrientation == X` is a read
+    code = "class A : Activity() {\n  fun f() {\n    if (requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) return\n    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT\n  }\n}\n"
+    r = run(tmp_path, app(extra={"app/src/main/java/A.kt": code}))
+    assert [f.line for f in r.findings if f.rule == "set-requested-orientation"] == [4]
+
+
 def test_predictive_back_rules_kotlin_and_java_comments_ignored(tmp_path):
     r = run(tmp_path, app(extra={
         "app/src/main/java/a/Main.kt": 'class Main : Activity() {\n  override fun onBackPressed() { super.onBackPressed() }\n  // override fun onBackPressed() {}\n  /* KEYCODE_BACK in a comment */\n  fun k(e: KeyEvent) = e.keyCode == KeyEvent.KEYCODE_BACK\n}\n',
