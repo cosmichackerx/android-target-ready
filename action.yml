@@ -1,5 +1,5 @@
 name: Android targetSdk Readiness
-description: "Scan an Android project (Kotlin, Java, Gradle, manifests, resources) for what changes when targetSdk moves to 36 and 37: edge-to-edge, predictive back, large-screen orientation, local network permission."
+description: "Scan an Android project for what changes when targetSdk moves to 36 and 37, without running a build."
 author: cosmichackerx
 branding:
   icon: smartphone
