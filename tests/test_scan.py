@@ -37,6 +37,13 @@ def test_requested_orientation_comparison_is_not_an_assignment(tmp_path):
     assert [f.line for f in r.findings if f.rule == "set-requested-orientation"] == [4]
 
 
+def test_java_banner_comment_does_not_swallow_code(tmp_path):
+    # found by comparing with android-target-lint on NewPipe: /*////...////*/ banners opened a "nested" comment in the lexer
+    code = "public class A extends AppCompatActivity {\n    /*//////////////////\n    // Lifecycle\n    //////////////////*/\n\n    @Override\n    public void onBackPressed() {\n    }\n}\n"
+    r = run(tmp_path, app(extra={"app/src/main/java/A.java": code}))
+    assert [f.line for f in r.findings if f.rule == "back-pressed-override"] == [7]
+
+
 def test_predictive_back_rules_kotlin_and_java_comments_ignored(tmp_path):
     r = run(tmp_path, app(extra={
         "app/src/main/java/a/Main.kt": 'class Main : Activity() {\n  override fun onBackPressed() { super.onBackPressed() }\n  // override fun onBackPressed() {}\n  /* KEYCODE_BACK in a comment */\n  fun k(e: KeyEvent) = e.keyCode == KeyEvent.KEYCODE_BACK\n}\n',
