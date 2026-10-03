@@ -49,7 +49,7 @@ class Result:
 
 # (rule, regex, kinds) -- kinds: "xml" manifest/resources, "code" Kotlin/Java, "manifest" AndroidManifest.xml only
 LINE_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
-    ("edge-to-edge-opt-out", re.compile(r"windowOptOutEdgeToEdgeEnforcement[\"']?\s*>\s*(?:true|@bool/\w+)", re.I), "xml"),
+    ("edge-to-edge-opt-out", re.compile(r"windowOptOutEdgeToEdgeEnforcement[\"']?(?:\s+[\w:.-]+\s*=\s*\"[^\"]*\")*\s*>\s*(?:true|@bool/\w+)", re.I), "xml"),
     ("back-opt-out", re.compile(r"android:enableOnBackInvokedCallback\s*=\s*[\"']false[\"']"), "manifest"),
     ("fixed-orientation", re.compile(rf"android:screenOrientation\s*=\s*[\"']{PORTRAIT_LANDSCAPE}[\"']"), "manifest"),
     ("non-resizeable", re.compile(r"android:resizeableActivity\s*=\s*[\"']false[\"']"), "manifest"),
@@ -62,7 +62,7 @@ LINE_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
     ("back-pressed-override", re.compile(r"\boverride\s+fun\s+onBackPressed\s*\(\s*\)\s*(?![:\s]*\w)|\b(?:public|protected)\s+void\s+onBackPressed\s*\(\s*\)"), "code"),
     ("back-keycode", re.compile(r"(?:==|\bcase)\s*(?:KeyEvent\.)?KEYCODE_BACK\b|\bKEYCODE_BACK\s*(?:==|->|:)"), "code"),
     ("fixed-rate-scheduling", re.compile(r"\.scheduleAtFixedRate\s*\("), "code"),
-    ("set-requested-orientation", re.compile(rf"(?:setRequestedOrientation\s*\(|\brequestedOrientation\s*=)[^\n]*{ORIENT_CONST}"), "code"),
+    ("set-requested-orientation", re.compile(rf"(?:setRequestedOrientation\s*\(|\brequestedOrientation\s*=(?!=))[^\n]*{ORIENT_CONST}"), "code"),
     ("bal-legacy-mode", re.compile(r"\bMODE_BACKGROUND_ACTIVITY_START_ALLOWED\b"), "code"),
     ("content-capture-disable", re.compile(r"\bsetContentCaptureEnabled\s*\(\s*false\b"), "code"),
     ("native-load-writable", re.compile(r"(?:\bSystem|\bRuntime\.getRuntime\(\))\.load\s*\("), "code"),
