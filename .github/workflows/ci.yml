@@ -135,7 +135,7 @@ jobs:
     needs: test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: cosmichackerx/android-target-ready@v0.1.0
+      - uses: cosmichackerx/android-target-ready@v0.2.3
         with:
           path: tests/fixtures/app-ready
           fail-on: error
